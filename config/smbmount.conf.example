@@ -1,0 +1,67 @@
+# =============================================================================
+#  smbmount.conf  –  konfigurasjon for Kerberos-baserte CIFS/SMB-mounts
+# -----------------------------------------------------------------------------
+#  Kopier denne fila til  config/smbmount.conf  og tilpass per server.
+#  setup.sh leser denne og legger en kopi i /etc/smbmount/smbmount.conf,
+#  som vedlikeholds-scriptene (kinit / health / status / fix) bruker.
+#
+#  Filen blir "source"-et av bash, så skriv gyldig bash (ingen mellomrom
+#  rundt =, bruk anførselstegn).
+# =============================================================================
+
+# --- Kerberos / Active Directory --------------------------------------------
+
+# Service-prinsippet slik det ble laget med ktpass (UPPERCASE REALM!).
+KRB_PRINCIPAL="SVC-User@AD.EXAMPLE.COM"
+
+# Sti til keytab-fila på Debian-serveren (kopier hit fra Windows med WinSCP).
+KRB_KEYTAB="/etc/krb5.keytabs/svc-user.keytab"
+
+# Sett 1 hvis setup.sh skal skrive /etc/krb5.conf automatisk.
+# 0 = ikke rør krb5.conf (bruk hvis AD-DNS allerede fungerer).
+MANAGE_KRB5CONF=0
+
+# --- Lokal tjenestebruker ----------------------------------------------------
+
+# Lokal Linux-bruker hvis keyring skal holde Kerberos-billetten (TGT).
+# Dette er brukeren tjenesten din kjører som (f.eks. plex, jellyfin, backup).
+SVC_USER="plex"
+
+# UID for SVC_USER. La stå tom for å auto-detektere med `id -u`.
+SVC_UID=""
+
+# Instansnavn brukt i systemd-enhetsnavn (smb-kinit-<INSTANCE>.service osv.).
+# La stå tom for å bruke SVC_USER.
+INSTANCE=""
+
+# --- Mount-standardvalg ------------------------------------------------------
+
+# Gruppe-ID som settes på filene i mountet (uid følger SVC_UID).
+MOUNT_GID="985"
+
+# SMB-protokollversjon.
+SMB_VERS="3.1.1"
+
+# Automount går til hvile etter så mange sekunder uten aktivitet.
+IDLE_TIMEOUT="300"
+
+# --- Varsling (health-check) -------------------------------------------------
+
+# Mottaker for e-postvarsel når TGT mangler / kommer tilbake.
+ALERT_TO="alerts@example.com"
+
+# --- Delte mapper (shares) ---------------------------------------------------
+#
+#  Ett element per share på formen:   <UNC>|<mountpunkt>
+#
+#  * UNC bruker skråstrek (/), ikke backslash.
+#  * '$' i skjulte share-navn MÅ dobles ($$) – det er slik systemd/fstab
+#    vil ha det. Bruk ENKLE anførselstegn ('...') rundt slike linjer, ellers
+#    tolker bash $$ som prosess-ID.
+#  * Mountpunkt opprettes automatisk hvis det mangler.
+#
+SHARES=(
+  "//fileserver.ad.example.com/Media|/mount/media"
+  '//fileserver.ad.example.com/Hidden$$/HomeVideos|/mount/homevideos'
+  '//fileserver.ad.example.com/Backup$$/Servers/HOST01|/mount/backup'
+)

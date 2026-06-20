@@ -1,0 +1,8 @@
+# Tving Unix-linjeskift (LF) på alt som kjøres på Debian-serveren.
+*.sh            text eol=lf
+*.conf          text eol=lf
+*.conf.example  text eol=lf
+setup.sh        text eol=lf
+
+# Windows-script beholder CRLF
+*.ps1           text eol=crlf

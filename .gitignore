@@ -1,0 +1,12 @@
+
+#Ignore environment variable files
+.env.*.local
+.env.local
+.env
+
+# Lokal konfig og hemmeligheter – ikke sjekk inn
+config/smbmount.conf
+*.keytab
+*.credentials
+*.bak
+fstab.smbmount.bak.*
