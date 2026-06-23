@@ -66,7 +66,6 @@ Import-Module WinSCP
 # Bygg session-options
 $optParams = @{
     HostName = $Server
-    UserName = $Username
     Protocol = 'Sftp'
 }
 if ($SshHostKeyFingerprint) {
@@ -81,6 +80,9 @@ if ($PrivateKeyPath) {
         throw "Finner ikke privat nøkkel: $PrivateKeyPath"
     }
     $optParams.SshPrivateKeyPath = $PrivateKeyPath
+    # Brukernavn må fortsatt oppgis via Credential (tomt passord ved nøkkel-auth)
+    $optParams.Credential = New-Object System.Management.Automation.PSCredential(
+        $Username, (New-Object System.Security.SecureString))
 } else {
     $optParams.Credential = Get-Credential -UserName $Username `
         -Message "Passord for $Username@$Server"
