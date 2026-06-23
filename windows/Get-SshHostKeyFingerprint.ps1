@@ -42,6 +42,6 @@ Write-Host "Host:        $HostName"
 Write-Host "Algorithm:   $Algorithm"
 Write-Host "Fingerprint: $fingerprint"
 Write-Host ""
-Write-Host "Use this value for -SshHostKeyFingerprint in Backup-SSH.ps1"
+Write-Host "Use this value for -SshHostKeyFingerprint in Copy-KeytabToServer.ps1"
 
 return $fingerprint

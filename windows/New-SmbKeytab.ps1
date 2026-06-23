@@ -91,6 +91,13 @@ Write-Host "[3/4] Kjører ktpass -> $OutFile ..." -ForegroundColor Yellow
     /pass $plain
 if ($LASTEXITCODE -ne 0) { throw "ktpass feilet (exit $LASTEXITCODE)." }
 
+# Forklar forventet SPN-advarsel fra ktpass
+Write-Host ""
+Write-Host "MERK: Hvis ktpass skrev en advarsel om 'Unable to set SPN mapping data'" -ForegroundColor DarkGray
+Write-Host "      (feilkode 0x13 / servicePrincipalName), er dette forventet stoy." -ForegroundColor DarkGray
+Write-Host "      SMB/CIFS-mount via keytab trenger ingen SPN-mapping - keytab-en" -ForegroundColor DarkGray
+Write-Host "      ble likevel laget korrekt (se 'Key created' over)." -ForegroundColor DarkGray
+
 # Rydd opp passord fra minnet (best effort)
 $plain = $null; [GC]::Collect()
 
