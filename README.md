@@ -122,6 +122,51 @@ nano config/smbmount.conf
 
 Sett minst `KRB_PRINCIPAL`, `KRB_KEYTAB`, `SVC_USER`, `MOUNT_GID` og `SHARES`.
 
+### Opprette tjenestebruker automatisk (valgfritt)
+
+Har du ikke allerede en lokal bruker for mountet, kan `setup.sh` opprette en
+dedikert **systembruker** for deg. Sett i `config/smbmount.conf`:
+
+```bash
+SVC_USER="dckmount"     # navnet på den nye brukeren
+CREATE_SVC_USER=1       # opprett bruker/gruppe hvis de mangler
+SVC_GROUP=""            # tom = bruk SVC_USER som gruppenavn
+SVC_HOME=""             # tom = /var/lib/<SVC_USER>
+SVC_UID=""              # tom = la systemet tildele UID automatisk
+```
+
+Kjør så enten `sudo ./setup.sh user` (kun bruker) eller `sudo ./setup.sh all`
+(brukeren opprettes automatisk før resten). Brukeren lages som `--system` med
+`nologin` (kan ikke logge inn interaktivt) – den brukes kun til å holde
+Kerberos-billetten og som `uid`/`cruid` på mountene.
+
+> **UID/GID – bør de pinnes?** Nei, ikke vanligvis. La systemet tildele dem
+> automatisk. Du trenger bare å sette faste `SVC_UID`/`MOUNT_GID` hvis noe
+> **utenfor** denne maskinen må matche eierskap (f.eks. NFS-reeksport eller delt
+> lagring). For en ren CIFS-mount-bruker er auto-tildelte ID-er enklest og
+> tryggest.
+
+#### Hva skjer hvis `MOUNT_GID` (f.eks. 985) allerede er i bruk?
+
+`setup.sh` prøver å gi den nye gruppen GID-en fra `MOUNT_GID`. Er den **ledig**,
+får gruppen den GID-en. Er den **allerede tatt** av en annen gruppe, faller
+verktøyet tilbake til en **auto-tildelt** GID og skriver en advarsel.
+
+Da oppstår et avvik: mount-valgene i `/etc/fstab` bruker fortsatt
+`gid=<MOUNT_GID>`, mens den nye gruppen har en annen GID. Med `noperm` blokkeres
+ikke tilgang, men filene i mountet vises som eid av den **andre** gruppen som
+allerede har GID 985. Anbefalt løsning:
+
+1. Sett `MOUNT_GID` i konfig til den GID-en den nye gruppen faktisk fikk
+   (`getent group dckmount` viser den), **eller** velg en annen ledig GID.
+2. Kjør `sudo ./setup.sh mounts` på nytt for å oppdatere fstab-blokken.
+
+Sjekk hva som eventuelt bruker en GID på forhånd:
+
+```bash
+getent group 985        # tomt = ledig
+```
+
 ---
 
 ## Steg 3 – Kjør installasjonen
@@ -230,6 +275,7 @@ neste tilgang (`sudo /usr/local/sbin/smb-fix-automounts.sh` om noen sitter fast)
 | `kerberos` | kinit-tjeneste + timer + første billett |
 | `mounts` | fstab-blokk + mountpunkter + automount |
 | `health` | health/status/fix-scripts + timer |
+| `user` | Opprett tjenestebruker/gruppe (`CREATE_SVC_USER`) |
 | `status` | Skriv statusrapport |
 | `uninstall` | Fjern systemd-enheter + fstab-blokk for instansen |
 

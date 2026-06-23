@@ -28,7 +28,24 @@ MANAGE_KRB5CONF=0
 SVC_USER="plex"
 
 # UID for SVC_USER. La stå tom for å auto-detektere med `id -u`.
+# Tips: for en dedikert mount-bruker er det enklest å la systemet tildele UID
+# automatisk (se CREATE_SVC_USER under). Pinn bare UID hvis noe UTENFOR denne
+# maskinen må matche eierskap (f.eks. NFS-eksport eller delt lagring).
 SVC_UID=""
+
+# --- Opprette tjenestebruker automatisk (valgfritt) -------------------------
+
+# Sett 1 for at setup.sh skal opprette SVC_USER (og gruppe) som systembruker
+# hvis den mangler. 0 = forutsetter at brukeren allerede finnes.
+CREATE_SVC_USER=0
+
+# Gruppenavn som opprettes/brukes. La stå tom for å bruke SVC_USER som navn.
+# Gruppen får MOUNT_GID (under) hvis den er ledig, ellers auto-tildelt GID.
+SVC_GROUP=""
+
+# Hjemmekatalog for system-brukeren (opprettes ved behov).
+# La stå tom for å bruke /var/lib/<SVC_USER>.
+SVC_HOME=""
 
 # Instansnavn brukt i systemd-enhetsnavn (smb-kinit-<INSTANCE>.service osv.).
 # La stå tom for å bruke SVC_USER.
@@ -38,6 +55,11 @@ INSTANCE=""
 
 # Gruppe-ID som settes på filene i mountet (uid følger SVC_UID).
 MOUNT_GID="985"
+
+# Merk: mountene settes opp med 'noperm' og 'noserverino' slik at ALLE lokale
+# brukere på denne maskinen kan lese/skrive i mountet (klient-siden hopper over
+# rettighetssjekk). Dette eksponerer filene for andre lokale brukere – greit på
+# en dedikert server, men vær obs på det på delte maskiner.
 
 # SMB-protokollversjon.
 SMB_VERS="3.1.1"

@@ -13,6 +13,7 @@
 #    sudo ./setup.sh kerberos           # kinit-tjeneste + timer + første billett
 #    sudo ./setup.sh mounts             # fstab + mountpunkter + automount
 #    sudo ./setup.sh health             # health/status/fix-scripts + timer
+#    sudo ./setup.sh user               # opprett tjenestebruker (CREATE_SVC_USER=1)
 #    sudo ./setup.sh status             # statusrapport
 #    sudo ./setup.sh uninstall          # fjern alt dette verktøyet la inn
 # =============================================================================
@@ -264,17 +265,87 @@ cmd_all() {
 }
 
 # -----------------------------------------------------------------------------
+#  Valgfri opprettelse av dedikert tjenestebruker (CREATE_SVC_USER=1)
+# -----------------------------------------------------------------------------
+ensure_svc_user() {
+  local user="${SVC_USER}"
+  local grp="${SVC_GROUP:-$user}"
+  local home="${SVC_HOME:-/var/lib/${user}}"
+
+  # Gruppe – bruk MOUNT_GID hvis den er satt og ledig, ellers auto-tildelt GID.
+  if ! getent group "$grp" >/dev/null 2>&1; then
+    if [[ -n "${MOUNT_GID:-}" ]] && ! getent group "${MOUNT_GID}" >/dev/null 2>&1; then
+      groupadd --system --gid "${MOUNT_GID}" "$grp"
+      ok "Opprettet gruppe '${grp}' med GID ${MOUNT_GID}."
+    else
+      groupadd --system "$grp"
+      local newgid; newgid="$(getent group "$grp" | cut -d: -f3)"
+      ok "Opprettet gruppe '${grp}' med auto-tildelt GID ${newgid}."
+      if [[ -n "${MOUNT_GID:-}" && "${newgid}" != "${MOUNT_GID}" ]]; then
+        local taken; taken="$(getent group "${MOUNT_GID}" | cut -d: -f1)"
+        warn "MOUNT_GID=${MOUNT_GID} er allerede i bruk av gruppen '${taken:-?}'."
+        warn "Gruppen '${grp}' fikk GID ${newgid} i stedet. Mount-valgene bruker"
+        warn "fortsatt gid=${MOUNT_GID}, så filene vil vises som eid av '${taken:-GID ${MOUNT_GID}}'."
+        warn "Anbefalt: sett MOUNT_GID=\"${newgid}\" i konfig og kjør 'sudo ./setup.sh mounts' på nytt."
+      fi
+    fi
+  else
+    info "Gruppe '${grp}' finnes – hopper over."
+  fi
+
+  # Bruker – systembruker uten innlogging (kun for keyring/cruid).
+  if ! id -u "$user" >/dev/null 2>&1; then
+    local uidopt=()
+    if [[ -n "${SVC_UID:-}" ]] && ! getent passwd "${SVC_UID}" >/dev/null 2>&1; then
+      uidopt=(--uid "${SVC_UID}")
+    fi
+    useradd --system "${uidopt[@]}" --gid "$grp" \
+            --home-dir "$home" --create-home \
+            --shell /usr/sbin/nologin "$user"
+    ok "Opprettet systembruker '${user}' (home=${home}, shell=nologin)."
+  else
+    info "Bruker '${user}' finnes – hopper over."
+  fi
+  id "$user"
+}
+
+# Pre-pass: oppretter bruker FØR UID utledes (id -u i common.sh), slik at
+# smb_load_config ikke feiler på manglende bruker. Kjøres bare for kommandoer
+# som faktisk installerer/oppretter ting.
+pre_create_user() {
+  case "${1:-}" in user|kerberos|mounts|all|"") ;; *) return 0 ;; esac
+  local cfg="${CONFIG:-${REPO_DIR}/config/smbmount.conf}"
+  [[ -f "$cfg" ]] || return 0
+  # shellcheck disable=SC1090
+  source "$cfg"
+  [[ "${CREATE_SVC_USER:-0}" == "1" ]] || return 0
+  require_root
+  info "CREATE_SVC_USER=1 – sørger for tjenestebruker '${SVC_USER}' …"
+  ensure_svc_user
+}
+
+cmd_user() {
+  require_root
+  [[ "${CREATE_SVC_USER:-0}" == "1" ]] \
+    || warn "CREATE_SVC_USER er ikke 1 i konfig – oppretter likevel på forespørsel."
+  ensure_svc_user
+}
+
+# -----------------------------------------------------------------------------
 main() {
+  local sub="${1:-}"
+  pre_create_user "${sub}"
   smb_load_config
   FSTAB_BEGIN="# >>> smbmount managed (${INSTANCE}) >>>"
   FSTAB_END="# <<< smbmount managed (${INSTANCE}) <<<"
-  local sub="${1:-}"; shift || true
+  shift || true
   case "${sub}" in
     deps)      cmd_deps ;;
     keytab)    cmd_keytab "$@" ;;
     kerberos)  cmd_kerberos ;;
     mounts)    cmd_mounts ;;
     health)    cmd_health ;;
+    user)      cmd_user ;;
     status)    cmd_status ;;
     uninstall) cmd_uninstall ;;
     all|"")    cmd_all ;;
