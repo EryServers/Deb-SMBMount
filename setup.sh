@@ -27,6 +27,8 @@ CONF_DST="/etc/smbmount/smbmount.conf"
 SBIN="/usr/local/sbin"
 UNIT_DIR="/etc/systemd/system"
 FSTAB="/etc/fstab"
+KRB5_CONF_D="/etc/krb5.conf.d"
+KRB5_CCACHE_DROPIN="${KRB5_CONF_D}/90-smbmount-ccache-keyring.conf"
 
 require_root() { [[ "${EUID}" -eq 0 ]] || die "Kjør som root (sudo)."; }
 
@@ -69,10 +71,34 @@ cmd_keytab() {
     || die "kinit feilet – sjekk prinsipp/keytab/krb5.conf."
 }
 
+# Legg ccache i kernel keyring per UID, slik at cifs.upcall finner
+# Kerberos-billetten ved mount (ellers feiler CIFS-mount med -126/ENOKEY).
+# Vi r 0rer IKKE /etc/krb5.conf – vi legger en drop-in i /etc/krb5.conf.d/.
+deploy_ccache_dropin() {
+  install -d -m 755 "${KRB5_CONF_D}"
+  cat > "${KRB5_CCACHE_DROPIN}" <<'EOF'
+[libdefaults]
+    # Lagt til av smbmount setup.sh.
+    # Legg ccache i kernel keyring per UID (CIFS/cifs.upcall finner den her).
+    default_ccache_name = KEYRING:persistent:%{uid}
+EOF
+  chmod 644 "${KRB5_CCACHE_DROPIN}"
+  ok "Skrev ccache-keyring drop-in: ${KRB5_CCACHE_DROPIN}"
+
+  # Drop-in virker bare hvis hoved-krb5.conf inkluderer katalogen.
+  if ! grep -Eqs '^[[:space:]]*include(dir)?[[:space:]]+/etc/krb5\.conf\.d' /etc/krb5.conf; then
+    warn "/etc/krb5.conf mangler 'includedir /etc/krb5.conf.d/' – drop-in blir ignorert."
+    warn "Legg til denne linja øverst i /etc/krb5.conf (utenfor alle [seksjoner]):"
+    warn "    includedir /etc/krb5.conf.d/"
+  fi
+}
+
 write_krb5conf() {
   [[ "${MANAGE_KRB5CONF:-0}" == "1" ]] || { info "MANAGE_KRB5CONF=0 – hopper over /etc/krb5.conf."; return 0; }
   local lower="${KRB_REALM,,}"
   cat > /etc/krb5.conf <<EOF
+includedir /etc/krb5.conf.d/
+
 [libdefaults]
     default_realm = ${KRB_REALM}
     dns_lookup_realm = false
@@ -91,6 +117,7 @@ cmd_kerberos() {
   require_root
   deploy_config
   deploy_scripts
+  deploy_ccache_dropin
   write_krb5conf
 
   info "Skriver ${KINIT_SVC} …"
@@ -241,6 +268,9 @@ cmd_uninstall() {
   systemctl disable --now "${KINIT_TIMER}" "${KINIT_SVC}" "${HEALTH_TIMER}" "${HEALTH_SVC}" 2>/dev/null || true
   rm -f "${UNIT_DIR}/${KINIT_SVC}" "${UNIT_DIR}/${KINIT_TIMER}" \
         "${UNIT_DIR}/${HEALTH_SVC}" "${UNIT_DIR}/${HEALTH_TIMER}"
+
+  warn "Fjerner ccache-keyring drop-in (${KRB5_CCACHE_DROPIN}) …"
+  rm -f "${KRB5_CCACHE_DROPIN}"
 
   warn "Fjerner fstab-blokk for '${INSTANCE}' (backup tas) …"
   cp -a "${FSTAB}" "${FSTAB}.smbmount.bak.$(date +%Y%m%d%H%M%S)"

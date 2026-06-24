@@ -128,7 +128,7 @@ Har du ikke allerede en lokal bruker for mountet, kan `setup.sh` opprette en
 dedikert **systembruker** for deg. Sett i `config/smbmount.conf`:
 
 ```bash
-SVC_USER="dckmount"     # navnet på den nye brukeren
+SVC_USER="svcusermount"     # navnet på den nye brukeren
 CREATE_SVC_USER=1       # opprett bruker/gruppe hvis de mangler
 SVC_GROUP=""            # tom = bruk SVC_USER som gruppenavn
 SVC_HOME=""             # tom = /var/lib/<SVC_USER>
@@ -158,7 +158,7 @@ ikke tilgang, men filene i mountet vises som eid av den **andre** gruppen som
 allerede har GID 985. Anbefalt løsning:
 
 1. Sett `MOUNT_GID` i konfig til den GID-en den nye gruppen faktisk fikk
-   (`getent group dckmount` viser den), **eller** velg en annen ledig GID.
+   (`getent group svcusermount` viser den), **eller** velg en annen ledig GID.
 2. Kjør `sudo ./setup.sh mounts` på nytt for å oppdatere fstab-blokken.
 
 Sjekk hva som eventuelt bruker en GID på forhånd:
