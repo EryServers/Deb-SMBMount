@@ -215,6 +215,50 @@ mount | grep -i media
 
 ---
 
+## Legge til en ny mount
+
+Skal du bare legge til ett ekstra share på en server som allerede er satt opp,
+trenger du **ikke** kjøre `all` på nytt. Legg til linja i `SHARES` i
+`config/smbmount.conf` og kjør `mounts`-delkommandoen – den oppretter
+mountpunktet, bygger fstab-blokken på nytt (tar backup) og trigger mount.
+
+**1) Legg til sharet i `SHARES`:**
+
+```bash
+SHARES=(
+  "//fileserver.ad.example.com/Media|/mount/media"
+  "//fileserver.ad.example.com/Documents|/mount/documents"
+)
+```
+
+Format per linje: `<UNC>|<mountpunkt>` med skråstrek (`/`) i UNC-en.
+
+> **Skjulte share (`$` i navnet):** `$` MÅ dobles til `$$`, og linja MÅ stå i
+> **enkle** anførselstegn (`'...'`) – ellers tolker bash `$$` som prosess-ID.
+> Eksempel:
+> ```bash
+> '//fileserver.ad.example.com/HiddenShare$$/app|/mount/app'
+> ```
+
+**2) Kjør `mounts` på nytt:**
+
+```bash
+sudo ./setup.sh mounts
+```
+
+**3) Verifiser:**
+
+```bash
+mount | grep -i app
+# sitter automounten fast?
+sudo /usr/local/sbin/smb-fix-automounts.sh
+```
+
+Den nye mounten bruker samme tjenestebruker, keytab og TGT som de øvrige –
+ingen ny keytab eller kinit-tjeneste trengs.
+
+---
+
 ## Oppdater keytab (etter passord-reset)
 
 Når passordet til AD-tjenestebrukeren byttes/roteres, blir den gamle keytaben
